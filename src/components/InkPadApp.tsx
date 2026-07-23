@@ -219,7 +219,7 @@ export default function InkPadApp() {
   if (!authReady) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-bg">
-        <div className="h-8 w-8 animate-pulse rounded-full bg-primary/20" />
+        <div className="h-2 w-2 rounded-full bg-primary anim-pulse" />
       </div>
     );
   }
@@ -231,7 +231,7 @@ export default function InkPadApp() {
   if (!ready) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-bg">
-        <div className="h-8 w-8 animate-pulse rounded-full bg-primary/20" />
+        <div className="h-2 w-2 rounded-full bg-primary anim-pulse" />
       </div>
     );
   }
@@ -298,13 +298,13 @@ export default function InkPadApp() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col bg-bg md:min-h-dvh md:flex-row">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[1280px] flex-col bg-bg md:min-h-dvh md:flex-row md:shadow-[var(--shadow-lg)] lg:my-0">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface md:flex">
-        <div className="px-5 pb-3 pt-[calc(1.25rem+var(--safe-top))]">
+      <aside className="hidden w-[248px] shrink-0 flex-col border-r border-border bg-panel md:flex">
+        <div className="px-4 pb-4 pt-[calc(1.25rem+var(--safe-top))]">
           <Brand />
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex flex-1 flex-col gap-0.5 px-2.5">
           {(Object.keys(TAB_META) as Tab[]).map((key) => {
             const meta = TAB_META[key];
             const Icon = meta.icon;
@@ -317,18 +317,18 @@ export default function InkPadApp() {
                   setSelectedId(null);
                 }}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                  "flex items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-left text-[13px] font-medium transition-colors duration-150",
                   tab === key
-                    ? "bg-primary text-white"
-                    : "text-ink hover:bg-surface-2",
+                    ? "bg-primary-soft text-primary"
+                    : "text-muted hover:bg-surface-2 hover:text-ink",
                 )}
               >
-                <Icon size={18} strokeWidth={2} />
+                <Icon size={17} strokeWidth={tab === key ? 2.35 : 2} />
                 {meta.label}
               </button>
             );
           })}
-          <div className="mt-6 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+          <div className="mt-7 px-3 text-[11px] font-semibold tracking-[0.04em] text-faint">
             Tipos
           </div>
           <WorkspaceFilters
@@ -337,15 +337,17 @@ export default function InkPadApp() {
           />
         </nav>
         <div className="border-t border-border p-4">
-          <div className="mb-2 flex items-center gap-1.5 text-xs text-muted">
-            <Cloud size={12} />
-            Nuvem Supabase
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-faint">
+            <Cloud size={11} />
+            Nuvem
           </div>
-          <p className="mb-3 truncate text-xs text-ink">{session.user.email}</p>
+          <p className="mb-3 truncate text-[12px] font-medium text-ink">
+            {session.user.email}
+          </p>
           <button
             type="button"
             onClick={() => supabase.auth.signOut()}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink"
+            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-muted transition hover:text-ink"
           >
             <LogOut size={12} />
             Sair
@@ -354,9 +356,9 @@ export default function InkPadApp() {
       </aside>
 
       {/* Main column */}
-      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-bg">
         <header
-          className="sticky top-0 z-20 border-b border-border bg-bg/90 px-4 backdrop-blur-md"
+          className="glass-bar sticky top-0 z-20 px-4"
           style={{ paddingTop: "calc(0.75rem + var(--safe-top))" }}
         >
           <div className="mb-3 flex items-center justify-between gap-3 md:hidden">
@@ -364,10 +366,10 @@ export default function InkPadApp() {
             <button
               type="button"
               onClick={handleCreate}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow)]"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow)] transition active:scale-95"
               aria-label="Criar"
             >
-              <Plus size={20} />
+              <Plus size={20} strokeWidth={2.25} />
             </button>
           </div>
 
@@ -375,7 +377,7 @@ export default function InkPadApp() {
             {selected && (
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink hover:bg-surface-2 md:hidden"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] text-ink transition hover:bg-surface-2 md:hidden"
                 onClick={() => setSelectedId(null)}
                 aria-label="Voltar"
               >
@@ -384,8 +386,8 @@ export default function InkPadApp() {
             )}
             <div className="relative min-w-0 flex-1">
               <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                size={15}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
               />
               <input
                 value={query}
@@ -397,7 +399,7 @@ export default function InkPadApp() {
                       ? "Buscar eventos…"
                       : "Buscar notas…"
                 }
-                className="h-11 w-full rounded-xl border border-border bg-surface pl-9 pr-9 text-[15px] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                className="h-11 w-full rounded-[12px] border border-border bg-surface pl-10 pr-9 text-[14px] outline-none transition focus:border-primary focus:bg-bg focus:ring-4 focus:ring-[var(--primary-ring)]"
               />
               {query && (
                 <button
@@ -413,14 +415,14 @@ export default function InkPadApp() {
             <button
               type="button"
               onClick={handleCreate}
-              className="hidden h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:opacity-95 md:inline-flex"
+              className="hidden h-11 items-center gap-2 rounded-[12px] bg-primary px-4 text-[13px] font-semibold text-white shadow-[var(--shadow-sm)] transition hover:brightness-[1.03] md:inline-flex"
             >
-              <Plus size={16} />
+              <Plus size={15} strokeWidth={2.25} />
               Novo
             </button>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-3 md:hidden">
+          <div className="flex gap-1.5 overflow-x-auto pb-3 md:hidden">
             <WorkspaceFilters
               value={workspaceFilter}
               onChange={setWorkspaceFilter}
@@ -506,10 +508,10 @@ export default function InkPadApp() {
 
         {/* Mobile bottom nav */}
         <nav
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/95 backdrop-blur-md md:hidden"
+          className="glass-bar fixed inset-x-0 bottom-0 z-30 border-t border-border md:hidden"
           style={{ paddingBottom: "var(--safe-bottom)" }}
         >
-          <div className="mx-auto grid h-16 max-w-lg grid-cols-3">
+          <div className="mx-auto grid h-[60px] max-w-lg grid-cols-3">
             {(Object.keys(TAB_META) as Tab[]).map((key) => {
               const meta = TAB_META[key];
               const Icon = meta.icon;
@@ -523,12 +525,15 @@ export default function InkPadApp() {
                     setSelectedId(null);
                   }}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
-                    active ? "text-primary" : "text-muted",
+                    "relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold tracking-wide transition-colors duration-150",
+                    active ? "text-primary" : "text-faint",
                   )}
                 >
-                  <Icon size={22} strokeWidth={active ? 2.4 : 2} />
+                  <Icon size={22} strokeWidth={active ? 2.4 : 1.9} />
                   {meta.label}
+                  {active && (
+                    <span className="absolute top-1.5 h-1 w-1 rounded-full bg-primary" />
+                  )}
                 </button>
               );
             })}
@@ -542,14 +547,16 @@ export default function InkPadApp() {
 function Brand() {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
-        <NotebookPen size={18} strokeWidth={2.2} />
+      <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary text-white shadow-[var(--shadow-sm)]">
+        <NotebookPen size={15} strokeWidth={2.4} />
       </div>
       <div>
-        <div className="text-[17px] font-semibold tracking-tight text-ink">
+        <div className="text-[15px] font-semibold tracking-[-0.02em] text-ink">
           InkPad
         </div>
-        <div className="text-[11px] text-muted">notas · agenda · sql</div>
+        <div className="text-[11px] tracking-wide text-faint">
+          notas · agenda · sql
+        </div>
       </div>
     </div>
   );
@@ -578,10 +585,10 @@ function WorkspaceFilters({
             type="button"
             onClick={() => onChange(ws.id)}
             className={cn(
-              "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition",
+              "shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium transition duration-150",
               value === ws.id
                 ? "bg-ink text-white"
-                : "bg-surface-2 text-ink",
+                : "bg-surface-2 text-muted hover:text-ink",
             )}
           >
             {ws.name}
@@ -599,12 +606,14 @@ function WorkspaceFilters({
           type="button"
           onClick={() => onChange(ws.id)}
           className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
-            value === ws.id ? "bg-surface-2 font-medium text-ink" : "text-muted hover:bg-surface-2/70 hover:text-ink",
+            "flex items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] transition duration-150",
+            value === ws.id
+              ? "bg-surface-2 font-medium text-ink"
+              : "text-muted hover:bg-surface-2/80 hover:text-ink",
           )}
         >
           <span
-            className="h-2 w-2 rounded-full"
+            className="h-1.5 w-1.5 rounded-full"
             style={{
               background:
                 ws.id === "all"
@@ -632,8 +641,8 @@ function ItemList({
 }) {
   if (items.length === 0) {
     return (
-      <div className="anim-fade-in px-6 py-16 text-center text-sm text-muted">
-        {emptyLabel}
+      <div className="anim-fade-in px-8 py-20 text-center">
+        <p className="text-[14px] leading-relaxed text-muted">{emptyLabel}</p>
       </div>
     );
   }
@@ -642,9 +651,9 @@ function ItemList({
   const rest = items.filter((i) => !i.pinned);
 
   return (
-    <div className="anim-fade-up px-3 py-3">
+    <div className="anim-fade-up px-2 py-2 md:px-3 md:py-3">
       {pinned.length > 0 && (
-        <SectionLabel icon={<Pin size={12} />} label="Fixadas" />
+        <SectionLabel icon={<Pin size={11} />} label="Fixadas" />
       )}
       {pinned.map((item, i) => (
         <ItemRow
@@ -652,7 +661,7 @@ function ItemList({
           item={item}
           active={item.id === selectedId}
           onSelect={onSelect}
-          style={{ animationDelay: `${i * 30}ms` }}
+          style={{ animationDelay: `${i * 24}ms` }}
         />
       ))}
       {rest.length > 0 && pinned.length > 0 && (
@@ -664,7 +673,7 @@ function ItemList({
           item={item}
           active={item.id === selectedId}
           onSelect={onSelect}
-          style={{ animationDelay: `${(pinned.length + i) * 30}ms` }}
+          style={{ animationDelay: `${(pinned.length + i) * 24}ms` }}
         />
       ))}
     </div>
@@ -679,7 +688,7 @@ function SectionLabel({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="mb-1 mt-2 flex items-center gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+    <div className="mb-1.5 mt-3 flex items-center gap-1.5 px-3 text-[11px] font-semibold tracking-[0.04em] text-faint">
       {icon}
       {label}
     </div>
@@ -704,35 +713,42 @@ function ItemRow({
       onClick={() => onSelect(item.id)}
       style={style}
       className={cn(
-        "anim-fade-up mb-1 w-full rounded-2xl border px-3.5 py-3 text-left transition",
+        "anim-fade-up mb-0.5 w-full rounded-[14px] px-3.5 py-3 text-left transition duration-150",
         active
-          ? "border-primary/25 bg-primary-soft"
-          : "border-transparent bg-transparent hover:bg-surface",
+          ? "bg-primary-soft"
+          : "bg-transparent hover:bg-surface",
       )}
     >
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <h3 className="line-clamp-1 text-[15px] font-semibold tracking-tight text-ink">
+      <div className="mb-1 flex items-start justify-between gap-3">
+        <h3 className="line-clamp-1 text-[14px] font-semibold tracking-[-0.01em] text-ink">
           {item.title || "Sem título"}
         </h3>
-        <span className="shrink-0 text-[11px] text-muted">
+        <span className="shrink-0 pt-0.5 text-[11px] tabular-nums text-faint">
           {formatRelative(item.updatedAt)}
         </span>
       </div>
-      <p className="line-clamp-2 font-mono text-[12px] leading-relaxed text-muted" style={item.type === "sql" ? undefined : { fontFamily: "inherit" }}>
-        {item.type === "sql" ? previewText(item.content, 80) : previewText(item.content)}
+      <p
+        className={cn(
+          "line-clamp-2 text-[12.5px] leading-relaxed text-muted",
+          item.type === "sql" && "font-mono text-[12px]",
+        )}
+      >
+        {item.type === "sql"
+          ? previewText(item.content, 80)
+          : previewText(item.content)}
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2">
         <span
-          className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+          className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wide"
           style={{
-            background: `color-mix(in oklch, ${ws?.accent ?? "var(--primary)"} 14%, white)`,
+            background: `color-mix(in oklch, ${ws?.accent ?? "var(--primary)"} 12%, white)`,
             color: ws?.accent ?? "var(--primary)",
           }}
         >
           {TYPE_LABELS[item.type]}
         </span>
-        <span className="text-[11px] text-muted">{ws?.name}</span>
-        {item.pinned && <Pin size={11} className="text-primary" />}
+        <span className="text-[11px] text-faint">{ws?.name}</span>
+        {item.pinned && <Pin size={11} className="ml-auto text-primary" />}
       </div>
     </button>
   );
@@ -766,22 +782,22 @@ function AgendaPanel({
   }
 
   return (
-    <div className="anim-fade-up px-4 py-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold capitalize tracking-tight">
+    <div className="anim-fade-up px-4 py-5">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-[17px] font-semibold capitalize tracking-[-0.02em] text-ink">
           {format(monthCursor, "MMMM yyyy", { locale: ptBR })}
         </h2>
-        <div className="flex gap-1">
+        <div className="flex gap-0.5 rounded-[10px] bg-surface-2 p-0.5">
           <button
             type="button"
-            className="rounded-lg px-2.5 py-1.5 text-sm text-muted hover:bg-surface-2"
+            className="rounded-[8px] px-2.5 py-1.5 text-[13px] text-muted transition hover:bg-bg hover:text-ink"
             onClick={() => setMonthCursor(addDays(startOfMonth(monthCursor), -1))}
           >
             ‹
           </button>
           <button
             type="button"
-            className="rounded-lg px-2.5 py-1.5 text-sm text-muted hover:bg-surface-2"
+            className="rounded-[8px] px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:bg-bg hover:text-ink"
             onClick={() => {
               const today = new Date();
               setMonthCursor(today);
@@ -792,7 +808,7 @@ function AgendaPanel({
           </button>
           <button
             type="button"
-            className="rounded-lg px-2.5 py-1.5 text-sm text-muted hover:bg-surface-2"
+            className="rounded-[8px] px-2.5 py-1.5 text-[13px] text-muted transition hover:bg-bg hover:text-ink"
             onClick={() => setMonthCursor(addDays(endOfMonth(monthCursor), 1))}
           >
             ›
@@ -800,7 +816,7 @@ function AgendaPanel({
         </div>
       </div>
 
-      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-muted">
+      <div className="mb-1.5 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold tracking-wide text-faint">
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
           <div key={`${d}-${i}`}>{d}</div>
         ))}
@@ -816,11 +832,11 @@ function AgendaPanel({
               type="button"
               onClick={() => setSelectedDay(day)}
               className={cn(
-                "relative flex aspect-square flex-col items-center justify-center rounded-xl text-sm transition",
-                !inMonth && "text-muted/40",
-                selected && "bg-primary font-semibold text-white",
+                "relative flex aspect-square flex-col items-center justify-center rounded-[12px] text-[13px] transition duration-150",
+                !inMonth && "text-faint/40",
+                selected && "bg-primary font-semibold text-white shadow-[var(--shadow-sm)]",
                 !selected && today && "bg-primary-soft font-semibold text-primary",
-                !selected && !today && "hover:bg-surface-2",
+                !selected && !today && inMonth && "text-ink hover:bg-surface-2",
               )}
             >
               {format(day, "d")}
@@ -837,33 +853,35 @@ function AgendaPanel({
         })}
       </div>
 
-      <div className="mt-6">
-        <h3 className="mb-2 text-sm font-semibold capitalize text-ink">
+      <div className="mt-7">
+        <h3 className="mb-3 text-[13px] font-semibold capitalize text-ink">
           {format(selectedDay, "EEEE, d MMM", { locale: ptBR })}
         </h3>
         {dayEvents.length === 0 ? (
-          <p className="rounded-2xl bg-surface px-4 py-6 text-sm text-muted">
+          <p className="rounded-[16px] bg-surface px-4 py-7 text-[13px] text-muted">
             Nenhum compromisso neste dia.
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {dayEvents.map((ev) => (
               <button
                 key={ev.id}
                 type="button"
                 onClick={() => onSelect(ev.id)}
                 className={cn(
-                  "rounded-2xl border px-4 py-3 text-left transition",
+                  "rounded-[14px] px-4 py-3.5 text-left transition duration-150",
                   selectedId === ev.id
-                    ? "border-primary/25 bg-primary-soft"
-                    : "border-border bg-surface hover:bg-surface-2",
+                    ? "bg-primary-soft"
+                    : "bg-surface hover:bg-surface-2",
                 )}
               >
-                <div className="flex items-center gap-2 text-xs font-medium text-muted">
+                <div className="flex items-center gap-2 text-[11px] font-medium text-faint">
                   <Clock3 size={12} />
                   {formatEventTime(ev)}
                 </div>
-                <div className="mt-1 text-[15px] font-semibold">{ev.title}</div>
+                <div className="mt-1 text-[14px] font-semibold tracking-[-0.01em]">
+                  {ev.title}
+                </div>
               </button>
             ))}
           </div>
@@ -903,15 +921,15 @@ function Editor({
   }, [title, content, item.id, item.title, item.content]);
 
   return (
-    <div className="anim-fade-in mx-auto w-full max-w-2xl px-4 pt-4 md:px-8 md:pt-8">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+    <div className="anim-fade-in mx-auto w-full max-w-2xl px-5 pt-5 md:px-10 md:pt-10">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
         <TypeBadge type={item.type} />
         <select
           value={item.workspaceId}
           onChange={(e) =>
             onChange({ workspaceId: e.target.value as WorkspaceId })
           }
-          className="h-9 rounded-lg border border-border bg-surface px-2 text-xs font-medium outline-none focus:border-primary"
+          className="h-9 rounded-[10px] border border-border bg-surface px-2.5 text-[12px] font-medium outline-none transition focus:border-primary focus:ring-4 focus:ring-[var(--primary-ring)]"
         >
           {WORKSPACES.map((ws) => (
             <option key={ws.id} value={ws.id}>
@@ -924,31 +942,33 @@ function Editor({
             type="button"
             onClick={onTogglePin}
             className={cn(
-              "inline-flex h-9 w-9 items-center justify-center rounded-lg transition",
-              item.pinned ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-2",
+              "inline-flex h-9 w-9 items-center justify-center rounded-[10px] transition duration-150",
+              item.pinned
+                ? "bg-primary-soft text-primary"
+                : "text-faint hover:bg-surface-2 hover:text-ink",
             )}
             aria-label="Fixar"
           >
-            <Pin size={16} />
+            <Pin size={15} />
           </button>
           <button
             type="button"
             onClick={onDelete}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-danger/10 hover:text-danger"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] text-faint transition hover:bg-danger/10 hover:text-danger"
             aria-label="Excluir"
           >
-            <Trash2 size={16} />
+            <Trash2 size={15} />
           </button>
         </div>
       </div>
 
       {item.type === "event" && (
-        <div className="mb-4 grid gap-2 sm:grid-cols-2">
-          <label className="text-xs font-medium text-muted">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2">
+          <label className="text-[12px] font-medium text-muted">
             Início
             <input
               type="datetime-local"
-              className="mt-1 h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              className="mt-1.5 h-11 w-full rounded-[12px] border border-border bg-surface px-3 text-[13px] outline-none focus:border-primary focus:ring-4 focus:ring-[var(--primary-ring)]"
               value={toLocalInput(item.startsAt)}
               onChange={(e) =>
                 onChange({
@@ -959,11 +979,11 @@ function Editor({
               }
             />
           </label>
-          <label className="text-xs font-medium text-muted">
+          <label className="text-[12px] font-medium text-muted">
             Fim
             <input
               type="datetime-local"
-              className="mt-1 h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              className="mt-1.5 h-11 w-full rounded-[12px] border border-border bg-surface px-3 text-[13px] outline-none focus:border-primary focus:ring-4 focus:ring-[var(--primary-ring)]"
               value={toLocalInput(item.endsAt)}
               onChange={(e) =>
                 onChange({
@@ -981,18 +1001,18 @@ function Editor({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Título"
-        className="mb-3 w-full bg-transparent text-[28px] font-semibold tracking-tight outline-none placeholder:text-muted/50"
+        className="mb-4 w-full bg-transparent text-[30px] font-semibold tracking-[-0.03em] outline-none placeholder:text-faint/70"
       />
 
       {item.type === "sql" ? (
-        <div className="overflow-hidden rounded-2xl border border-border bg-[oklch(0.975_0.01_230)] shadow-[var(--shadow)]">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2">
-            <span className="flex items-center gap-1.5 text-xs font-medium text-accent">
+        <div className="overflow-hidden rounded-[16px] border border-border bg-[oklch(0.985_0.008_230)] shadow-[var(--shadow-sm)]">
+          <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
+            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-accent">
               <Code2 size={14} /> SQL
             </span>
             <button
               type="button"
-              className="rounded-md px-2 py-1 text-[11px] font-semibold text-muted hover:bg-white"
+              className="rounded-[8px] px-2.5 py-1 text-[11px] font-semibold text-muted transition hover:bg-bg hover:text-ink"
               onClick={() => navigator.clipboard.writeText(content)}
             >
               Copiar
@@ -1002,12 +1022,12 @@ function Editor({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             spellCheck={false}
-            className="min-h-[220px] w-full resize-y bg-transparent p-4 font-mono text-[13px] leading-6 text-ink outline-none"
+            className="min-h-[240px] w-full resize-y bg-transparent p-4 font-mono text-[13px] leading-6 text-ink outline-none"
             placeholder="SELECT …"
           />
           {content.trim() && (
-            <div className="border-t border-border bg-white/70 px-4 py-3">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+            <div className="border-t border-border bg-bg/80 px-4 py-3.5">
+              <div className="mb-2 text-[10px] font-semibold tracking-[0.06em] text-faint">
                 Preview
               </div>
               <pre
@@ -1022,7 +1042,7 @@ function Editor({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Escreva aqui…"
-          className="min-h-[50vh] w-full resize-none bg-transparent text-[16px] leading-7 outline-none placeholder:text-muted/50"
+          className="min-h-[50vh] w-full resize-none bg-transparent text-[16px] leading-[1.7] outline-none placeholder:text-faint/70"
         />
       )}
     </div>
@@ -1037,8 +1057,8 @@ function TypeBadge({ type }: { type: ItemType }) {
   };
   const Icon = icons[type];
   return (
-    <span className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 text-xs font-semibold text-ink">
-      <Icon size={14} />
+    <span className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-surface-2 px-2.5 text-[12px] font-semibold text-ink">
+      <Icon size={13} />
       {TYPE_LABELS[type]}
     </span>
   );
@@ -1069,22 +1089,26 @@ function EmptyEditor({ onCreate, tab }: { onCreate: () => void; tab: Tab }) {
 
   return (
     <div className="anim-fade-in flex flex-col items-center px-6 text-center">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
-        <Icon size={24} />
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-[16px] bg-primary text-white shadow-[var(--shadow)]">
+        <Icon size={22} strokeWidth={2.2} />
       </div>
-      <h2 className="text-lg font-semibold tracking-tight">{copy.title}</h2>
-      <p className="mt-1 max-w-xs text-sm text-muted">{copy.body}</p>
+      <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-ink">
+        {copy.title}
+      </h2>
+      <p className="mt-1.5 max-w-[260px] text-[13px] leading-relaxed text-muted">
+        {copy.body}
+      </p>
       <button
         type="button"
         onClick={onCreate}
-        className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white"
+        className="mt-6 inline-flex h-11 items-center gap-2 rounded-[12px] bg-primary px-5 text-[13px] font-semibold text-white shadow-[var(--shadow-sm)] transition hover:brightness-[1.03]"
       >
-        <Plus size={16} />
+        <Plus size={15} strokeWidth={2.25} />
         {copy.cta}
       </button>
-      <div className="mt-10 flex items-center gap-2 text-xs text-muted">
-        <UserRound size={12} />
-        Separado por tipos · funciona no iPhone
+      <div className="mt-10 flex items-center gap-1.5 text-[11px] text-faint">
+        <UserRound size={11} />
+        Separado por tipos · otimizado para iPhone
       </div>
     </div>
   );

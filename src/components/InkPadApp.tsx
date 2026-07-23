@@ -32,6 +32,7 @@ import { ptBR } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthScreen } from "@/components/AuthScreen";
 import { useDialog } from "@/components/Dialog";
+import { AppSkeleton, LoadingScreen } from "@/components/LoadingScreen";
 import {
   TaxonomyNav,
   type TaxonomyFilter,
@@ -110,7 +111,8 @@ export default function InkPadApp() {
   const dialog = useDialog();
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [booting, setBooting] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [items, setItems] = useState<NoteItem[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -121,8 +123,15 @@ export default function InkPadApp() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState(() => new Date());
+  const bootstrapped = useRef(false);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent && !bootstrapped.current) {
+      setBooting(true);
+    } else if (!silent) {
+      setSyncing(true);
+    }
     try {
       const tax = await ensureTaxonomy();
       setWorkspaces(tax.workspaces);
@@ -130,6 +139,7 @@ export default function InkPadApp() {
       const list = await seedIfEmpty(tax.workspaces[0]?.id ?? "");
       setItems(list);
       setLoadError(null);
+      bootstrapped.current = true;
     } catch (err) {
       const message =
         err && typeof err === "object" && "message" in err
@@ -146,6 +156,9 @@ export default function InkPadApp() {
       } else {
         setLoadError(message || "Erro ao carregar");
       }
+    } finally {
+      setBooting(false);
+      setSyncing(false);
     }
   }, []);
 
@@ -153,21 +166,25 @@ export default function InkPadApp() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthReady(true);
+      if (!data.session) setBooting(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
+      if (!next) {
+        bootstrapped.current = false;
+        setItems([]);
+        setWorkspaces([]);
+        setFolders([]);
+        setBooting(false);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!session) {
-      setReady(false);
-      setItems([]);
-      return;
-    }
-    setReady(false);
-    refreshAll().finally(() => setReady(true));
+    if (!session) return;
+
+    void refreshAll({ silent: bootstrapped.current });
 
     const channel = supabase
       .channel("items-sync")
@@ -175,7 +192,7 @@ export default function InkPadApp() {
         "postgres_changes",
         { event: "*", schema: "public", table: "items" },
         () => {
-          void refreshAll();
+          void refreshAll({ silent: true });
         },
       )
       .subscribe();
@@ -323,23 +340,15 @@ export default function InkPadApp() {
   }
 
   if (!authReady) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg">
-        <div className="h-2 w-2 rounded-full bg-primary anim-pulse" />
-      </div>
-    );
+    return <LoadingScreen message="Verificando sessão…" />;
   }
 
   if (!session) {
     return <AuthScreen />;
   }
 
-  if (!ready) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg">
-        <div className="h-2 w-2 rounded-full bg-primary anim-pulse" />
-      </div>
-    );
+  if (booting) {
+    return <AppSkeleton />;
   }
 
   if (loadError) {
@@ -384,8 +393,7 @@ export default function InkPadApp() {
           <button
             type="button"
             onClick={() => {
-              setReady(false);
-              refreshAll().finally(() => setReady(true));
+              void refreshAll();
             }}
             className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-white"
           >
@@ -405,6 +413,11 @@ export default function InkPadApp() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[1280px] flex-col bg-bg md:min-h-dvh md:flex-row md:shadow-[var(--shadow-lg)] lg:my-0">
+      {syncing && (
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden">
+          <div className="sync-bar h-full w-1/3 bg-primary" />
+        </div>
+      )}
       {/* Desktop sidebar */}
       <aside className="hidden w-[248px] shrink-0 flex-col border-r border-border bg-panel md:flex">
         <div className="px-4 pb-4 pt-[calc(1.25rem+var(--safe-top))]">

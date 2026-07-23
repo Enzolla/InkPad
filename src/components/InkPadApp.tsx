@@ -51,6 +51,32 @@ import { cn, formatEventTime, formatRelative, highlightSql, previewText } from "
 
 type Tab = "notes" | "agenda" | "sql";
 
+const SETUP_SQL = `-- Cole no SQL Editor do Supabase e clique Run
+create table if not exists public.items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  workspace_id text not null,
+  type text not null check (type in ('note', 'sql', 'event')),
+  title text not null default '',
+  content text not null default '',
+  pinned boolean not null default false,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  all_day boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists items_user_updated_idx on public.items (user_id, updated_at desc);
+alter table public.items enable row level security;
+drop policy if exists "items_select_own" on public.items;
+drop policy if exists "items_insert_own" on public.items;
+drop policy if exists "items_update_own" on public.items;
+drop policy if exists "items_delete_own" on public.items;
+create policy "items_select_own" on public.items for select using (auth.uid() = user_id);
+create policy "items_insert_own" on public.items for insert with check (auth.uid() = user_id);
+create policy "items_update_own" on public.items for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "items_delete_own" on public.items for delete using (auth.uid() = user_id);`;
+
 const TAB_META: Record<
   Tab,
   { label: string; icon: typeof NotebookPen; workspace: WorkspaceId; type: ItemType }
@@ -79,13 +105,20 @@ export default function InkPadApp() {
       setItems(list);
       setLoadError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao carregar";
-      if (message.includes("schema cache") || message.includes("Could not find the table")) {
-        setLoadError(
-          "Falta criar a tabela no Supabase. Abra o SQL Editor do projeto, rode o arquivo supabase/schema.sql e recarregue.",
-        );
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: string }).message)
+          : err instanceof Error
+            ? err.message
+            : "Erro ao carregar";
+      if (
+        message.includes("schema cache") ||
+        message.includes("Could not find the table") ||
+        message.includes("PGRST205")
+      ) {
+        setLoadError("MISSING_TABLE");
       } else {
-        setLoadError(message);
+        setLoadError(message || "Erro ao carregar");
       }
     }
   }, []);
@@ -204,18 +237,53 @@ export default function InkPadApp() {
   }
 
   if (loadError) {
+    const isMissingTable = loadError === "MISSING_TABLE";
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg px-6">
-        <div className="max-w-md text-center">
+      <div className="flex min-h-dvh items-center justify-center bg-bg px-6 py-10">
+        <div className="w-full max-w-lg text-center">
           <Cloud className="mx-auto mb-3 text-primary" size={28} />
           <h1 className="text-lg font-semibold">Configuração da nuvem</h1>
-          <p className="mt-2 text-sm text-muted">{loadError}</p>
+          <p className="mt-2 text-sm text-muted">
+            {isMissingTable
+              ? "Falta criar a tabela no Supabase. Cole o SQL abaixo no SQL Editor e clique em Run."
+              : loadError}
+          </p>
+          {isMissingTable && (
+            <div className="mt-4 text-left">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted">schema.sql</span>
+                <button
+                  type="button"
+                  className="rounded-lg bg-surface-2 px-2.5 py-1 text-xs font-semibold text-ink"
+                  onClick={() =>
+                    navigator.clipboard.writeText(SETUP_SQL)
+                  }
+                >
+                  Copiar SQL
+                </button>
+              </div>
+              <pre className="max-h-48 overflow-auto rounded-2xl border border-border bg-surface p-3 text-left font-mono text-[10px] leading-4 text-ink">
+                {SETUP_SQL}
+              </pre>
+              <a
+                href="https://supabase.com/dashboard/project/mshlcyogwcnkfehfjxmc/sql/new"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-ink"
+              >
+                Abrir SQL Editor
+              </a>
+            </div>
+          )}
           <button
             type="button"
-            onClick={() => refreshItems()}
-            className="mt-5 inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-white"
+            onClick={() => {
+              setReady(false);
+              refreshItems().finally(() => setReady(true));
+            }}
+            className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-white"
           >
-            Tentar de novo
+            Já rodei o SQL — tentar de novo
           </button>
           <button
             type="button"

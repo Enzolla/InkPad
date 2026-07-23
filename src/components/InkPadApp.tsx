@@ -1,9 +1,11 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
+import type { Session } from "@supabase/supabase-js";
 import {
   CalendarDays,
   Code2,
+  Cloud,
+  LogOut,
   NotebookPen,
   Pin,
   Search,
@@ -27,15 +29,17 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AuthScreen } from "@/components/AuthScreen";
 import {
   createItem,
-  db,
   deleteItem,
-  ensureSeed,
+  fetchItems,
+  seedIfEmpty,
   togglePin,
   updateItem,
-} from "@/lib/db";
+} from "@/lib/cloud";
+import { supabase } from "@/lib/supabase";
 import {
   TYPE_LABELS,
   WORKSPACES,
@@ -57,7 +61,11 @@ const TAB_META: Record<
 };
 
 export default function InkPadApp() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [ready, setReady] = useState(false);
+  const [items, setItems] = useState<NoteItem[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("notes");
   const [workspaceFilter, setWorkspaceFilter] = useState<WorkspaceId | "all">("all");
   const [query, setQuery] = useState("");
@@ -65,11 +73,58 @@ export default function InkPadApp() {
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState(() => new Date());
 
-  useEffect(() => {
-    ensureSeed().finally(() => setReady(true));
+  const refreshItems = useCallback(async () => {
+    try {
+      const list = await seedIfEmpty();
+      setItems(list);
+      setLoadError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao carregar";
+      if (message.includes("schema cache") || message.includes("Could not find the table")) {
+        setLoadError(
+          "Falta criar a tabela no Supabase. Abra o SQL Editor do projeto, rode o arquivo supabase/schema.sql e recarregue.",
+        );
+      } else {
+        setLoadError(message);
+      }
+    }
   }, []);
 
-  const items = useLiveQuery(() => db.items.orderBy("updatedAt").reverse().toArray(), []) ?? [];
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setReady(false);
+      setItems([]);
+      return;
+    }
+    setReady(false);
+    refreshItems().finally(() => setReady(true));
+
+    const channel = supabase
+      .channel("items-sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "items" },
+        () => {
+          void refreshItems();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [session, refreshItems]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -124,13 +179,52 @@ export default function InkPadApp() {
       startsAt,
       endsAt,
     });
+    setItems((prev) => [item, ...prev]);
     setSelectedId(item.id);
+  }
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-bg">
+        <div className="h-8 w-8 animate-pulse rounded-full bg-primary/20" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen />;
   }
 
   if (!ready) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-bg">
         <div className="h-8 w-8 animate-pulse rounded-full bg-primary/20" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-bg px-6">
+        <div className="max-w-md text-center">
+          <Cloud className="mx-auto mb-3 text-primary" size={28} />
+          <h1 className="text-lg font-semibold">Configuração da nuvem</h1>
+          <p className="mt-2 text-sm text-muted">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => refreshItems()}
+            className="mt-5 inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-white"
+          >
+            Tentar de novo
+          </button>
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="mt-3 block w-full text-sm text-muted"
+          >
+            Sair
+          </button>
+        </div>
       </div>
     );
   }
@@ -174,8 +268,20 @@ export default function InkPadApp() {
             onChange={setWorkspaceFilter}
           />
         </nav>
-        <div className="border-t border-border p-4 text-xs text-muted">
-          Dados ficam neste aparelho · offline
+        <div className="border-t border-border p-4">
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-muted">
+            <Cloud size={12} />
+            Nuvem Supabase
+          </div>
+          <p className="mb-3 truncate text-xs text-ink">{session.user.email}</p>
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink"
+          >
+            <LogOut size={12} />
+            Sair
+          </button>
         </div>
       </aside>
 
@@ -298,12 +404,31 @@ export default function InkPadApp() {
             {selected ? (
               <Editor
                 item={selected}
-                onChange={(patch) => updateItem(selected.id, patch)}
+                onChange={async (patch) => {
+                  await updateItem(selected.id, patch);
+                  setItems((prev) =>
+                    prev
+                      .map((i) =>
+                        i.id === selected.id
+                          ? { ...i, ...patch, updatedAt: new Date().toISOString() }
+                          : i,
+                      )
+                      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+                  );
+                }}
                 onDelete={async () => {
                   await deleteItem(selected.id);
+                  setItems((prev) => prev.filter((i) => i.id !== selected.id));
                   setSelectedId(null);
                 }}
-                onTogglePin={() => togglePin(selected.id)}
+                onTogglePin={async () => {
+                  await togglePin(selected.id, selected.pinned);
+                  setItems((prev) =>
+                    prev.map((i) =>
+                      i.id === selected.id ? { ...i, pinned: !i.pinned } : i,
+                    ),
+                  );
+                }}
               />
             ) : (
               <EmptyEditor onCreate={handleCreate} tab={tab} />
@@ -687,12 +812,14 @@ function Editor({
   onTogglePin,
 }: {
   item: NoteItem;
-  onChange: (patch: Partial<NoteItem>) => void;
+  onChange: (patch: Partial<NoteItem>) => void | Promise<void>;
   onDelete: () => void;
   onTogglePin: () => void;
 }) {
   const [title, setTitle] = useState(item.title);
   const [content, setContent] = useState(item.content);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     setTitle(item.title);
@@ -702,7 +829,7 @@ function Editor({
   useEffect(() => {
     if (title === item.title && content === item.content) return;
     const t = setTimeout(() => {
-      void updateItem(item.id, { title, content });
+      void onChangeRef.current({ title, content });
     }, 320);
     return () => clearTimeout(t);
   }, [title, content, item.id, item.title, item.content]);

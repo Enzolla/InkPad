@@ -1,26 +1,27 @@
 export type ItemType = "note" | "sql" | "event";
 
-export type WorkspaceId =
-  | "anotacoes"
-  | "agenda"
-  | "sql"
-  | "pessoal";
-
 export interface Workspace {
-  id: WorkspaceId;
+  id: string;
   name: string;
-  description: string;
   accent: string;
+  sortOrder: number;
+}
+
+export interface Folder {
+  id: string;
+  workspaceId: string;
+  name: string;
+  sortOrder: number;
 }
 
 export interface NoteItem {
   id: string;
-  workspaceId: WorkspaceId;
+  workspaceId: string;
+  folderId?: string;
   type: ItemType;
   title: string;
   content: string;
   pinned: boolean;
-  /** ISO datetime — used by agenda events */
   startsAt?: string;
   endsAt?: string;
   allDay?: boolean;
@@ -28,37 +29,30 @@ export interface NoteItem {
   updatedAt: string;
 }
 
-export type ViewMode = "inbox" | "agenda" | "editor";
-
-export const WORKSPACES: Workspace[] = [
-  {
-    id: "anotacoes",
-    name: "Anotações",
-    description: "Ideias, rascunhos e texto livre",
-    accent: "var(--ws-notes)",
-  },
-  {
-    id: "pessoal",
-    name: "Pessoal",
-    description: "Agenda e notas da vida pessoal",
-    accent: "var(--ws-personal)",
-  },
-  {
-    id: "agenda",
-    name: "Agenda",
-    description: "Compromissos e lembretes",
-    accent: "var(--ws-agenda)",
-  },
-  {
-    id: "sql",
-    name: "SQL",
-    description: "Queries e snippets guardados",
-    accent: "var(--ws-sql)",
-  },
-];
-
 export const TYPE_LABELS: Record<ItemType, string> = {
   note: "Nota",
   sql: "SQL",
   event: "Evento",
 };
+
+export const ACCENT_PRESETS = [
+  "oklch(0.47 0.185 28)",
+  "oklch(0.52 0.13 320)",
+  "oklch(0.52 0.11 160)",
+  "oklch(0.46 0.11 230)",
+  "oklch(0.55 0.14 55)",
+  "oklch(0.5 0.12 280)",
+  "oklch(0.48 0.1 200)",
+  "oklch(0.45 0.08 145)",
+];
+
+export const DEFAULT_WORKSPACES: Array<{
+  name: string;
+  accent: string;
+  legacyIds: string[];
+}> = [
+  { name: "Anotações", accent: "oklch(0.47 0.185 28)", legacyIds: ["anotacoes"] },
+  { name: "Pessoal", accent: "oklch(0.52 0.13 320)", legacyIds: ["pessoal"] },
+  { name: "Agenda", accent: "oklch(0.52 0.11 160)", legacyIds: ["agenda"] },
+  { name: "SQL", accent: "oklch(0.46 0.11 230)", legacyIds: ["sql"] },
+];

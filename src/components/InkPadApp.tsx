@@ -32,9 +32,17 @@ import { ptBR } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthScreen } from "@/components/AuthScreen";
 import {
+  TaxonomyNav,
+  type TaxonomyFilter,
+} from "@/components/TaxonomyNav";
+import {
+  createFolder,
   createItem,
+  createWorkspace,
+  deleteFolder,
   deleteItem,
-  fetchItems,
+  deleteWorkspace,
+  ensureTaxonomy,
   seedIfEmpty,
   togglePin,
   updateItem,
@@ -42,48 +50,59 @@ import {
 import { supabase } from "@/lib/supabase";
 import {
   TYPE_LABELS,
-  WORKSPACES,
+  type Folder,
   type ItemType,
   type NoteItem,
-  type WorkspaceId,
+  type Workspace,
 } from "@/lib/types";
 import { cn, formatEventTime, formatRelative, highlightSql, previewText } from "@/lib/utils";
 
 type Tab = "notes" | "agenda" | "sql";
 
 const SETUP_SQL = `-- Cole no SQL Editor do Supabase e clique Run
-create table if not exists public.items (
+alter table public.items add column if not exists folder_id text;
+create table if not exists public.workspaces (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  workspace_id text not null,
-  type text not null check (type in ('note', 'sql', 'event')),
-  title text not null default '',
-  content text not null default '',
-  pinned boolean not null default false,
-  starts_at timestamptz,
-  ends_at timestamptz,
-  all_day boolean not null default false,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  name text not null,
+  accent text not null default 'oklch(0.47 0.185 28)',
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
 );
-create index if not exists items_user_updated_idx on public.items (user_id, updated_at desc);
-alter table public.items enable row level security;
-drop policy if exists "items_select_own" on public.items;
-drop policy if exists "items_insert_own" on public.items;
-drop policy if exists "items_update_own" on public.items;
-drop policy if exists "items_delete_own" on public.items;
-create policy "items_select_own" on public.items for select using (auth.uid() = user_id);
-create policy "items_insert_own" on public.items for insert with check (auth.uid() = user_id);
-create policy "items_update_own" on public.items for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "items_delete_own" on public.items for delete using (auth.uid() = user_id);`;
+create table if not exists public.folders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  workspace_id uuid not null references public.workspaces (id) on delete cascade,
+  name text not null,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.workspaces enable row level security;
+alter table public.folders enable row level security;
+drop policy if exists "workspaces_select_own" on public.workspaces;
+drop policy if exists "workspaces_insert_own" on public.workspaces;
+drop policy if exists "workspaces_update_own" on public.workspaces;
+drop policy if exists "workspaces_delete_own" on public.workspaces;
+create policy "workspaces_select_own" on public.workspaces for select using (auth.uid() = user_id);
+create policy "workspaces_insert_own" on public.workspaces for insert with check (auth.uid() = user_id);
+create policy "workspaces_update_own" on public.workspaces for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "workspaces_delete_own" on public.workspaces for delete using (auth.uid() = user_id);
+drop policy if exists "folders_select_own" on public.folders;
+drop policy if exists "folders_insert_own" on public.folders;
+drop policy if exists "folders_update_own" on public.folders;
+drop policy if exists "folders_delete_own" on public.folders;
+create policy "folders_select_own" on public.folders for select using (auth.uid() = user_id);
+create policy "folders_insert_own" on public.folders for insert with check (auth.uid() = user_id);
+create policy "folders_update_own" on public.folders for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "folders_delete_own" on public.folders for delete using (auth.uid() = user_id);`;
 
 const TAB_META: Record<
   Tab,
-  { label: string; icon: typeof NotebookPen; workspace: WorkspaceId; type: ItemType }
+  { label: string; icon: typeof NotebookPen; type: ItemType }
 > = {
-  notes: { label: "Notas", icon: NotebookPen, workspace: "anotacoes", type: "note" },
-  agenda: { label: "Agenda", icon: CalendarDays, workspace: "agenda", type: "event" },
-  sql: { label: "SQL", icon: Code2, workspace: "sql", type: "sql" },
+  notes: { label: "Notas", icon: NotebookPen, type: "note" },
+  agenda: { label: "Agenda", icon: CalendarDays, type: "event" },
+  sql: { label: "SQL", icon: Code2, type: "sql" },
 };
 
 export default function InkPadApp() {
@@ -91,17 +110,22 @@ export default function InkPadApp() {
   const [authReady, setAuthReady] = useState(false);
   const [ready, setReady] = useState(false);
   const [items, setItems] = useState<NoteItem[]>([]);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("notes");
-  const [workspaceFilter, setWorkspaceFilter] = useState<WorkspaceId | "all">("all");
+  const [filter, setFilter] = useState<TaxonomyFilter>({ kind: "all" });
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [monthCursor, setMonthCursor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState(() => new Date());
 
-  const refreshItems = useCallback(async () => {
+  const refreshAll = useCallback(async () => {
     try {
-      const list = await seedIfEmpty();
+      const tax = await ensureTaxonomy();
+      setWorkspaces(tax.workspaces);
+      setFolders(tax.folders);
+      const list = await seedIfEmpty(tax.workspaces[0]?.id ?? "");
       setItems(list);
       setLoadError(null);
     } catch (err) {
@@ -141,7 +165,7 @@ export default function InkPadApp() {
       return;
     }
     setReady(false);
-    refreshItems().finally(() => setReady(true));
+    refreshAll().finally(() => setReady(true));
 
     const channel = supabase
       .channel("items-sync")
@@ -149,7 +173,7 @@ export default function InkPadApp() {
         "postgres_changes",
         { event: "*", schema: "public", table: "items" },
         () => {
-          void refreshItems();
+          void refreshAll();
         },
       )
       .subscribe();
@@ -157,7 +181,7 @@ export default function InkPadApp() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [session, refreshItems]);
+  }, [session, refreshAll]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -165,14 +189,18 @@ export default function InkPadApp() {
       if (tab === "notes" && item.type === "sql") return false;
       if (tab === "sql" && item.type !== "sql") return false;
       if (tab === "agenda" && item.type !== "event") return false;
-      if (workspaceFilter !== "all" && item.workspaceId !== workspaceFilter) return false;
+      if (filter.kind === "workspace" && item.workspaceId !== filter.workspaceId)
+        return false;
+      if (filter.kind === "folder") {
+        if (item.folderId !== filter.folderId) return false;
+      }
       if (!q) return true;
       return (
         item.title.toLowerCase().includes(q) ||
         item.content.toLowerCase().includes(q)
       );
     });
-  }, [items, tab, workspaceFilter, query]);
+  }, [items, tab, filter, query]);
 
   const selected = items.find((i) => i.id === selectedId) ?? null;
 
@@ -187,8 +215,28 @@ export default function InkPadApp() {
     [items, selectedDay],
   );
 
+  function resolveCreateTarget() {
+    if (filter.kind === "folder") {
+      return { workspaceId: filter.workspaceId, folderId: filter.folderId };
+    }
+    if (filter.kind === "workspace") {
+      return { workspaceId: filter.workspaceId, folderId: undefined as string | undefined };
+    }
+    const byName = (n: string) =>
+      workspaces.find((w) => w.name.toLowerCase() === n)?.id;
+    const fallback =
+      (tab === "sql" ? byName("sql") : null) ||
+      (tab === "agenda" ? byName("agenda") : null) ||
+      byName("anotações") ||
+      workspaces[0]?.id;
+    return { workspaceId: fallback ?? "", folderId: undefined as string | undefined };
+  }
+
   async function handleCreate() {
     const meta = TAB_META[tab];
+    const target = resolveCreateTarget();
+    if (!target.workspaceId) return;
+
     let startsAt: string | undefined;
     let endsAt: string | undefined;
     if (meta.type === "event") {
@@ -200,20 +248,47 @@ export default function InkPadApp() {
       endsAt = end.toISOString();
     }
     const item = await createItem({
-      workspaceId:
-        workspaceFilter !== "all"
-          ? workspaceFilter
-          : meta.type === "event"
-            ? "agenda"
-            : meta.type === "sql"
-              ? "sql"
-              : "anotacoes",
+      workspaceId: target.workspaceId,
+      folderId: target.folderId,
       type: meta.type,
       startsAt,
       endsAt,
     });
     setItems((prev) => [item, ...prev]);
     setSelectedId(item.id);
+  }
+
+  async function handleCreateWorkspace() {
+    const name = prompt("Nome do novo tipo:");
+    if (!name?.trim()) return;
+    const ws = await createWorkspace(name.trim());
+    setWorkspaces((prev) => [...prev, ws]);
+    setFilter({ kind: "workspace", workspaceId: ws.id });
+  }
+
+  async function handleCreateFolder(workspaceId: string) {
+    const name = prompt("Nome da subpasta:");
+    if (!name?.trim()) return;
+    const folder = await createFolder(workspaceId, name.trim());
+    setFolders((prev) => [...prev, folder]);
+    setFilter({ kind: "folder", workspaceId, folderId: folder.id });
+  }
+
+  async function handleDeleteWorkspace(id: string) {
+    await deleteWorkspace(id);
+    await refreshAll();
+    setFilter({ kind: "all" });
+  }
+
+  async function handleDeleteFolder(id: string) {
+    await deleteFolder(id);
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setItems((prev) =>
+      prev.map((i) => (i.folderId === id ? { ...i, folderId: undefined } : i)),
+    );
+    if (filter.kind === "folder" && filter.folderId === id) {
+      setFilter({ kind: "workspace", workspaceId: filter.workspaceId });
+    }
   }
 
   if (!authReady) {
@@ -279,7 +354,7 @@ export default function InkPadApp() {
             type="button"
             onClick={() => {
               setReady(false);
-              refreshItems().finally(() => setReady(true));
+              refreshAll().finally(() => setReady(true));
             }}
             className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-white"
           >
@@ -328,12 +403,15 @@ export default function InkPadApp() {
               </button>
             );
           })}
-          <div className="mt-7 px-3 text-[11px] font-semibold tracking-[0.04em] text-faint">
-            Tipos
-          </div>
-          <WorkspaceFilters
-            value={workspaceFilter}
-            onChange={setWorkspaceFilter}
+          <TaxonomyNav
+            workspaces={workspaces}
+            folders={folders}
+            filter={filter}
+            onFilterChange={setFilter}
+            onCreateWorkspace={handleCreateWorkspace}
+            onCreateFolder={handleCreateFolder}
+            onDeleteWorkspace={handleDeleteWorkspace}
+            onDeleteFolder={handleDeleteFolder}
           />
         </nav>
         <div className="border-t border-border p-4">
@@ -423,9 +501,15 @@ export default function InkPadApp() {
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto pb-3 md:hidden">
-            <WorkspaceFilters
-              value={workspaceFilter}
-              onChange={setWorkspaceFilter}
+            <TaxonomyNav
+              workspaces={workspaces}
+              folders={folders}
+              filter={filter}
+              onFilterChange={setFilter}
+              onCreateWorkspace={handleCreateWorkspace}
+              onCreateFolder={handleCreateFolder}
+              onDeleteWorkspace={handleDeleteWorkspace}
+              onDeleteFolder={handleDeleteFolder}
               chips
             />
           </div>
@@ -455,6 +539,8 @@ export default function InkPadApp() {
                 items={filtered}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
+                workspaces={workspaces}
+                folders={folders}
                 emptyLabel={
                   tab === "sql"
                     ? "Nenhuma query ainda. Guarde seu primeiro SQL."
@@ -474,6 +560,8 @@ export default function InkPadApp() {
             {selected ? (
               <Editor
                 item={selected}
+                workspaces={workspaces}
+                folders={folders}
                 onChange={async (patch) => {
                   await updateItem(selected.id, patch);
                   setItems((prev) =>
@@ -562,81 +650,19 @@ function Brand() {
   );
 }
 
-function WorkspaceFilters({
-  value,
-  onChange,
-  chips,
-}: {
-  value: WorkspaceId | "all";
-  onChange: (v: WorkspaceId | "all") => void;
-  chips?: boolean;
-}) {
-  const options: Array<{ id: WorkspaceId | "all"; name: string; accent?: string }> = [
-    { id: "all", name: "Todos" },
-    ...WORKSPACES,
-  ];
-
-  if (chips) {
-    return (
-      <>
-        {options.map((ws) => (
-          <button
-            key={ws.id}
-            type="button"
-            onClick={() => onChange(ws.id)}
-            className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium transition duration-150",
-              value === ws.id
-                ? "bg-ink text-white"
-                : "bg-surface-2 text-muted hover:text-ink",
-            )}
-          >
-            {ws.name}
-          </button>
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <div className="mt-1 flex flex-col gap-0.5">
-      {options.map((ws) => (
-        <button
-          key={ws.id}
-          type="button"
-          onClick={() => onChange(ws.id)}
-          className={cn(
-            "flex items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] transition duration-150",
-            value === ws.id
-              ? "bg-surface-2 font-medium text-ink"
-              : "text-muted hover:bg-surface-2/80 hover:text-ink",
-          )}
-        >
-          <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{
-              background:
-                ws.id === "all"
-                  ? "var(--ink)"
-                  : WORKSPACES.find((w) => w.id === ws.id)?.accent,
-            }}
-          />
-          {ws.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ItemList({
   items,
   selectedId,
   onSelect,
+  workspaces,
+  folders,
   emptyLabel,
 }: {
   items: NoteItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  workspaces: Workspace[];
+  folders: Folder[];
   emptyLabel: string;
 }) {
   if (items.length === 0) {
@@ -661,6 +687,8 @@ function ItemList({
           item={item}
           active={item.id === selectedId}
           onSelect={onSelect}
+          workspaces={workspaces}
+          folders={folders}
           style={{ animationDelay: `${i * 24}ms` }}
         />
       ))}
@@ -673,6 +701,8 @@ function ItemList({
           item={item}
           active={item.id === selectedId}
           onSelect={onSelect}
+          workspaces={workspaces}
+          folders={folders}
           style={{ animationDelay: `${(pinned.length + i) * 24}ms` }}
         />
       ))}
@@ -699,14 +729,19 @@ function ItemRow({
   item,
   active,
   onSelect,
+  workspaces,
+  folders,
   style,
 }: {
   item: NoteItem;
   active: boolean;
   onSelect: (id: string) => void;
+  workspaces: Workspace[];
+  folders: Folder[];
   style?: React.CSSProperties;
 }) {
-  const ws = WORKSPACES.find((w) => w.id === item.workspaceId);
+  const ws = workspaces.find((w) => w.id === item.workspaceId);
+  const folder = folders.find((f) => f.id === item.folderId);
   return (
     <button
       type="button"
@@ -737,7 +772,7 @@ function ItemRow({
           ? previewText(item.content, 80)
           : previewText(item.content)}
       </p>
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <span
           className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wide"
           style={{
@@ -747,7 +782,10 @@ function ItemRow({
         >
           {TYPE_LABELS[item.type]}
         </span>
-        <span className="text-[11px] text-faint">{ws?.name}</span>
+        <span className="text-[11px] text-faint">
+          {ws?.name ?? "Tipo"}
+          {folder ? ` · ${folder.name}` : ""}
+        </span>
         {item.pinned && <Pin size={11} className="ml-auto text-primary" />}
       </div>
     </button>
@@ -893,11 +931,15 @@ function AgendaPanel({
 
 function Editor({
   item,
+  workspaces,
+  folders,
   onChange,
   onDelete,
   onTogglePin,
 }: {
   item: NoteItem;
+  workspaces: Workspace[];
+  folders: Folder[];
   onChange: (patch: Partial<NoteItem>) => void | Promise<void>;
   onDelete: () => void;
   onTogglePin: () => void;
@@ -906,6 +948,8 @@ function Editor({
   const [content, setContent] = useState(item.content);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  const foldersForWs = folders.filter((f) => f.workspaceId === item.workspaceId);
 
   useEffect(() => {
     setTitle(item.title);
@@ -927,13 +971,32 @@ function Editor({
         <select
           value={item.workspaceId}
           onChange={(e) =>
-            onChange({ workspaceId: e.target.value as WorkspaceId })
+            onChange({
+              workspaceId: e.target.value,
+              folderId: undefined,
+            })
           }
           className="h-9 rounded-[10px] border border-border bg-surface px-2.5 text-[12px] font-medium outline-none transition focus:border-primary focus:ring-4 focus:ring-[var(--primary-ring)]"
         >
-          {WORKSPACES.map((ws) => (
+          {workspaces.map((ws) => (
             <option key={ws.id} value={ws.id}>
               {ws.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={item.folderId ?? ""}
+          onChange={(e) =>
+            onChange({
+              folderId: e.target.value || undefined,
+            })
+          }
+          className="h-9 max-w-[160px] rounded-[10px] border border-border bg-surface px-2.5 text-[12px] font-medium outline-none transition focus:border-primary focus:ring-4 focus:ring-[var(--primary-ring)]"
+        >
+          <option value="">Sem pasta</option>
+          {foldersForWs.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
             </option>
           ))}
         </select>

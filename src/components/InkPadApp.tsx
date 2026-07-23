@@ -31,6 +31,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthScreen } from "@/components/AuthScreen";
+import { useDialog } from "@/components/Dialog";
 import {
   TaxonomyNav,
   type TaxonomyFilter,
@@ -106,6 +107,7 @@ const TAB_META: Record<
 };
 
 export default function InkPadApp() {
+  const dialog = useDialog();
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [ready, setReady] = useState(false);
@@ -259,28 +261,57 @@ export default function InkPadApp() {
   }
 
   async function handleCreateWorkspace() {
-    const name = prompt("Nome do novo tipo:");
-    if (!name?.trim()) return;
-    const ws = await createWorkspace(name.trim());
+    const name = await dialog.prompt({
+      title: "Novo tipo",
+      description: "Organize notas, agenda e SQL em categorias.",
+      placeholder: "Ex: Trabalho, Estudos…",
+      confirmLabel: "Criar tipo",
+    });
+    if (!name) return;
+    const ws = await createWorkspace(name);
     setWorkspaces((prev) => [...prev, ws]);
     setFilter({ kind: "workspace", workspaceId: ws.id });
   }
 
   async function handleCreateFolder(workspaceId: string) {
-    const name = prompt("Nome da subpasta:");
-    if (!name?.trim()) return;
-    const folder = await createFolder(workspaceId, name.trim());
+    const ws = workspaces.find((w) => w.id === workspaceId);
+    const name = await dialog.prompt({
+      title: "Nova subpasta",
+      description: ws
+        ? `Dentro de “${ws.name}”.`
+        : "Crie uma pasta dentro do tipo.",
+      placeholder: "Ex: Reuniões, Queries…",
+      confirmLabel: "Criar pasta",
+    });
+    if (!name) return;
+    const folder = await createFolder(workspaceId, name);
     setFolders((prev) => [...prev, folder]);
     setFilter({ kind: "folder", workspaceId, folderId: folder.id });
   }
 
   async function handleDeleteWorkspace(id: string) {
+    const ws = workspaces.find((w) => w.id === id);
+    const ok = await dialog.confirm({
+      title: `Excluir “${ws?.name ?? "tipo"}”?`,
+      description: "Os itens desse tipo vão para outro tipo. Essa ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     await deleteWorkspace(id);
     await refreshAll();
     setFilter({ kind: "all" });
   }
 
   async function handleDeleteFolder(id: string) {
+    const folder = folders.find((f) => f.id === id);
+    const ok = await dialog.confirm({
+      title: `Excluir pasta “${folder?.name ?? ""}”?`,
+      description: "As notas da pasta ficam sem pasta, mas não são apagadas.",
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     await deleteFolder(id);
     setFolders((prev) => prev.filter((f) => f.id !== id));
     setItems((prev) =>

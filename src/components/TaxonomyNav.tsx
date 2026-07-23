@@ -197,15 +197,7 @@ export function TaxonomyNav({
               {workspaces.length > 1 && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Excluir o tipo “${ws.name}”? Itens vão para outro tipo.`,
-                      )
-                    ) {
-                      onDeleteWorkspace(ws.id);
-                    }
-                  }}
+                  onClick={() => onDeleteWorkspace(ws.id)}
                   className="mr-1 hidden h-7 w-7 items-center justify-center rounded-md text-faint transition hover:bg-danger/10 hover:text-danger group-hover/ws:inline-flex"
                   aria-label="Excluir tipo"
                 >
@@ -247,13 +239,7 @@ export function TaxonomyNav({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (
-                            confirm(`Excluir a pasta “${folder.name}”?`)
-                          ) {
-                            onDeleteFolder(folder.id);
-                          }
-                        }}
+                        onClick={() => onDeleteFolder(folder.id)}
                         className="mr-1 hidden h-6 w-6 items-center justify-center rounded-md text-faint hover:text-danger group-hover/folder:inline-flex"
                         aria-label="Excluir pasta"
                       >
